@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex justify-between items-center">
+        <h1 class="text-2xl font-bold text-gray-900">Background Tasks</h1>
+        <div class="flex space-x-2">
+            <button hx-get="/api/tasks/active" hx-target="#task-list" hx-swap="innerHTML"
+                    class="bg-gray-100 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-200 text-sm">
+                Refresh
+            </button>
+            <button hx-post="/api/tasks/cleanup" hx-confirm="Clean up old tasks?"
+                    class="bg-red-100 text-red-700 px-4 py-2 rounded-md hover:bg-red-200 text-sm">
+                Cleanup
+            </button>
+        </div>
+    </div>
+
+    <!-- Task Submission -->
+    <div class="bg-white shadow rounded-lg p-6">
+        <h2 class="text-lg font-medium text-gray-900 mb-4">Submit New Task</h2>
+        <form id="task-form" class="space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Package Name</label>
+                    <input type="text" name="package_name" id="task-package"
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                           placeholder="e.g., lodash">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Or Multiple (comma-separated)</label>
+                    <input type="text" name="packages" id="task-packages"
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                           placeholder="e.g., lodash,express,axios">
+                </div>
+            </div>
+            <div class="flex items-center space-x-4">
+                <label class="flex items-center">
+                    <input type="checkbox" name="enable_ai" id="task-ai" class="rounded border-gray-300 text-indigo-600">
+                    <span class="ml-2 text-sm text-gray-700">Enable AI Analysis</span>
+                </label>
+                <button type="submit"
+                        class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 text-sm font-medium">
+                    Submit Task
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Task List with auto-refresh -->
+    <div class="bg-white shadow rounded-lg overflow-hidden" id="task-container"
+         hx-get="/api/tasks" hx-trigger="every 3s" hx-swap="innerHTML" hx-target="#task-list">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Progress</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Package(s)</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duration</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="task-list" class="divide-y divide-gray-200">
+                {% for task in tasks %}
+                <tr>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
+                        {{ task.id[:8] }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {{ task.task_type }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+                            {% if task.status == 'completed' %}bg-green-100 text-green-800
+                            {% elif task.status == 'running' %}bg-blue-100 text-blue-800
+                            {% elif task.status == 'pending' %}bg-yellow-100 text-yellow-800
+                            {% elif task.status == 'failed' %}bg-red-100 text-red-800
+                            {% else %}bg-gray-100 text-gray-800{% endif %}">
+                            {{ task.status }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex items-center">
+                            <div class="w-full bg-gray-200 rounded-full h-2 mr-2">
+                                <div class="bg-indigo-600 h-2 rounded-full" style="width: {{ task.progress_percent }}%"></div>
+                            </div>
+                            <span class="text-xs text-gray-500">{{ task.progress }}/{{ task.total }}</span>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {{ task.package_name or (task.packages[:3]|join(', ') + ('...' if task.packages|length > 3 else '')) }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {{ '%.1f'|format(task.elapsed_seconds or 0) }}s
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                        {% if task.status == 'pending' %}
+                        <button hx-post="/api/tasks/{{ task.id }}/cancel"
+                                hx-confirm="Cancel this task?"
+                                class="text-red-600 hover:text-red-900">Cancel</button>
+                        {% elif task.status == 'completed' and task.result %}
+                        <a href="/scan/{{ task.result.get('scan_id', '') }}" class="text-indigo-600 hover:text-indigo-900">View</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+document.getElementById('task-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const packageName = document.getElementById('task-package').value;
+    const packagesStr = document.getElementById('task-packages').value;
+    const enableAi = document.getElementById('task-ai').checked;
+
+    const body = {};
+    if (packagesStr) {
+        body.packages = packagesStr.split(',').map(s => s.trim());
+    } else if (packageName) {
+        body.package_name = packageName;
+    } else {
+        alert('Enter a package name or list');
+        return;
+    }
+    body.enable_ai = enableAi;
+
+    const resp = await fetch('/api/tasks/scan', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body),
+    });
+
+    if (resp.ok) {
+        document.getElementById('task-package').value = '';
+        document.getElementById('task-packages').value = '';
+        htmx.trigger('#task-container', 'refresh');
+    }
+});
+</script>
+{% endblock %}

@@ -191,7 +191,7 @@ File: {filename}
         context += f"License: {package_info.license or 'N/A'}\n"
 
         if existing_findings:
-            context += f"\nExisting findings from pattern detection:\n"
+            context += "\nExisting findings from pattern detection:\n"
             for finding in existing_findings[:5]:  # Limit to 5 findings
                 context += f"- {finding.rule_id}: {finding.title}\n"
 

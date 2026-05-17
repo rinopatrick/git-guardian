@@ -164,7 +164,7 @@ def serve(
     """Start the web server."""
     import uvicorn
 
-    console.print(f"[bold blue]Starting Git Guardian web server...[/bold blue]")
+    console.print("[bold blue]Starting Git Guardian web server...[/bold blue]")
     console.print(f"Open http://{host}:{port} in your browser")
 
     uvicorn.run(
@@ -173,6 +173,277 @@ def serve(
         port=port,
         reload=reload,
     )
+
+
+# === Watchlist Commands ===
+
+@app.command()
+def watchlist_add(
+    package_name: str = typer.Argument(..., help="npm package name to watch"),
+    notes: str | None = typer.Option(None, "--notes", "-n", help="Notes about this package"),
+) -> None:
+    """Add a package to the watchlist."""
+    import asyncio
+
+    from git_guardian.db.database import async_session, init_db
+    from git_guardian.services.watchlist_service import WatchlistService
+
+    async def _run():
+        await init_db()
+        async with async_session() as session:
+            service = WatchlistService(session)
+            entry = await service.add_package(package_name, notes)
+            await session.commit()
+            console.print(f"[green]Added[/green] {entry.package_name} to watchlist (id: {entry.id})")
+
+    asyncio.run(_run())
+
+
+@app.command()
+def watchlist_list() -> None:
+    """List watchlist entries."""
+    import asyncio
+
+    from git_guardian.db.database import async_session, init_db
+    from git_guardian.services.watchlist_service import WatchlistService
+
+    async def _run():
+        await init_db()
+        async with async_session() as session:
+            service = WatchlistService(session)
+            entries = await service.list_entries()
+
+            if not entries:
+                console.print("[yellow]Watchlist is empty[/yellow]")
+                return
+
+            table = Table(title="Package Watchlist")
+            table.add_column("Package", style="cyan")
+            table.add_column("Status", style="green")
+            table.add_column("Last Risk", style="red")
+            table.add_column("Scans", justify="right")
+            table.add_column("Last Scan")
+
+            for e in entries:
+                last_scan = e.last_scan_at.strftime("%Y-%m-%d %H:%M") if e.last_scan_at else "Never"
+                table.add_row(
+                    e.package_name,
+                    e.status,
+                    e.last_risk_level or "-",
+                    str(e.scan_count),
+                    last_scan,
+                )
+
+            console.print(table)
+
+    asyncio.run(_run())
+
+
+@app.command()
+def watchlist_remove(
+    package_name: str = typer.Argument(..., help="Package to remove from watchlist"),
+) -> None:
+    """Remove a package from the watchlist."""
+    import asyncio
+
+    from git_guardian.db.database import async_session, init_db
+    from git_guardian.services.watchlist_service import WatchlistService
+
+    async def _run():
+        await init_db()
+        async with async_session() as session:
+            service = WatchlistService(session)
+            removed = await service.remove_package(package_name)
+            await session.commit()
+
+            if removed:
+                console.print(f"[green]Removed[/green] {package_name} from watchlist")
+            else:
+                console.print(f"[red]{package_name} not found in watchlist[/red]")
+
+    asyncio.run(_run())
+
+
+# === Dependency Commands ===
+
+@app.command()
+def deps(
+    package_name: str = typer.Argument(..., help="npm package to scan dependencies"),
+    max_depth: int = typer.Option(3, "--depth", "-d", help="Max dependency depth"),
+    max_packages: int = typer.Option(50, "--max", "-m", help="Max packages to scan"),
+    json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
+) -> None:
+    """Scan transitive dependencies of a package."""
+    import json
+
+    from git_guardian.services.dependency_scanner import DependencyScanner
+
+    console.print(f"\n[bold blue]Scanning dependencies:[/bold blue] {package_name}\n")
+
+    try:
+        with DependencyScanner(max_depth=max_depth, max_packages=max_packages) as scanner:
+            result = scanner.scan_dependencies(package_name)
+
+        if json_output:
+            print(json.dumps(result.to_dict(), indent=2, default=str))
+        else:
+            console.print(f"Root: [bold]{result.root_package}[/bold] v{result.root_version}")
+            console.print(f"Packages scanned: {result.total_packages}")
+            console.print(f"Total findings: {result.total_findings}")
+            console.print(f"Packages with findings: {result.packages_with_findings}")
+            console.print(f"Max depth reached: {result.max_depth_reached}")
+            console.print(f"Duration: {result.scan_duration_seconds:.2f}s")
+
+            # Print tree
+            _print_dep_tree(result.graph)
+
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
+def _print_dep_tree(node, prefix="", is_last=True):
+    """Print dependency tree."""
+    connector = "└── " if is_last else "├── "
+    risk_style = _risk_style(node.risk_level) if hasattr(node.risk_level, 'value') else "white"
+    risk_val = node.risk_level.value if hasattr(node.risk_level, 'value') else node.risk_level
+
+    findings_info = f" [{risk_style}]{risk_val.upper()}[/{risk_style}]" if risk_val != "safe" else ""
+    error_info = f" [red]({node.error})[/red]" if node.error else ""
+
+    console.print(f"{prefix}{connector}{node.name}@{node.version}{findings_info}{error_info}")
+
+    if node.children:
+        extension = "    " if is_last else "│   "
+        for i, child in enumerate(node.children):
+            _print_dep_tree(child, prefix + extension, i == len(node.children) - 1)
+
+
+# === Export Commands ===
+
+@app.command()
+def export(
+    format: str = typer.Option("json", "--format", "-f", help="Export format (json/csv)"),
+    limit: int = typer.Option(100, "--limit", "-l", help="Max records"),
+    risk: str | None = typer.Option(None, "--risk", "-r", help="Filter by risk level"),
+    output: str | None = typer.Option(None, "--output", "-o", help="Output file"),
+) -> None:
+    """Export scan history."""
+    import asyncio
+
+    from git_guardian.db.database import async_session, init_db
+    from git_guardian.services.export_service import ExportService
+
+    async def _run():
+        await init_db()
+        async with async_session() as session:
+            service = ExportService(session)
+
+            if format == "csv":
+                data = await service.export_scans_csv(limit=limit, risk_level=risk)
+            else:
+                data = await service.export_scans_json(limit=limit, risk_level=risk)
+
+            if output:
+                with open(output, "w") as f:
+                    f.write(data)
+                console.print(f"[green]Exported to {output}[/green]")
+            else:
+                print(data)
+
+    asyncio.run(_run())
+
+
+# === Task Commands ===
+
+@app.command()
+def tasks() -> None:
+    """List background tasks."""
+    from git_guardian.workers.task_manager import get_task_manager
+
+    manager = get_task_manager()
+    all_tasks = manager.get_all_tasks()
+
+    if not all_tasks:
+        console.print("[yellow]No background tasks[/yellow]")
+        return
+
+    table = Table(title="Background Tasks")
+    table.add_column("ID", style="cyan", width=8)
+    table.add_column("Type", width=15)
+    table.add_column("Status", width=12)
+    table.add_column("Progress", width=10)
+    table.add_column("Package(s)", width=30)
+
+    for t in all_tasks:
+        status_style = {
+            "pending": "yellow",
+            "running": "blue",
+            "completed": "green",
+            "failed": "red",
+            "cancelled": "dim",
+        }.get(t.status.value, "white")
+
+        pkg = t.package_name or ", ".join(t.packages[:3])
+        if len(t.packages) > 3:
+            pkg += f" (+{len(t.packages) - 3})"
+
+        table.add_row(
+            t.id[:8],
+            t.task_type.value,
+            f"[{status_style}]{t.status.value}[/{status_style}]",
+            f"{t.progress}/{t.total}",
+            pkg,
+        )
+
+    console.print(table)
+
+
+# === Alert Commands ===
+
+@app.command()
+def alerts() -> None:
+    """List security alerts."""
+    import asyncio
+
+    from git_guardian.db.database import async_session, init_db
+    from git_guardian.services.alert_service import AlertService
+
+    async def _run():
+        await init_db()
+        async with async_session() as session:
+            service = AlertService(session)
+            alert_list = await service.list_alerts(limit=20)
+
+            if not alert_list:
+                console.print("[green]No alerts[/green]")
+                return
+
+            table = Table(title="Security Alerts")
+            table.add_column("Severity", width=10)
+            table.add_column("Package", style="cyan")
+            table.add_column("Title", width=40)
+            table.add_column("Read", width=5)
+            table.add_column("Resolved", width=8)
+
+            for a in alert_list:
+                sev_style = {
+                    "critical": "bold red",
+                    "warning": "yellow",
+                    "info": "blue",
+                }.get(a.severity, "white")
+
+                table.add_row(
+                    f"[{sev_style}]{a.severity.upper()}[/{sev_style}]",
+                    a.package_name,
+                    a.title[:40],
+                    "✓" if a.is_read else "✗",
+                    "✓" if a.is_resolved else "✗",
+                )
+
+            console.print(table)
+
+    asyncio.run(_run())
 
 
 if __name__ == "__main__":

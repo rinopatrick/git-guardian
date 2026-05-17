@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex justify-between items-center">
+        <h1 class="text-2xl font-bold text-gray-900">Security Alerts</h1>
+        <div class="flex space-x-2">
+            <button hx-post="/api/alerts/read-all" hx-target="#alert-list"
+                    class="bg-gray-100 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-200 text-sm">
+                Mark All Read
+            </button>
+            <a href="/api/alerts?is_resolved=false"
+               class="bg-indigo-100 text-indigo-700 px-4 py-2 rounded-md hover:bg-indigo-200 text-sm">
+                Unresolved Only
+            </a>
+        </div>
+    </div>
+
+    <!-- Alert Stats -->
+    <div class="grid grid-cols-4 gap-4">
+        <div class="bg-white rounded-lg shadow p-4">
+            <div class="text-sm text-gray-500">Total</div>
+            <div class="text-2xl font-bold text-gray-900">{{ stats.get('total', 0) }}</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+            <div class="text-sm text-gray-500">Unread</div>
+            <div class="text-2xl font-bold text-yellow-600">{{ stats.get('unread', 0) }}</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+            <div class="text-sm text-gray-500">Unresolved</div>
+            <div class="text-2xl font-bold text-red-600">{{ stats.get('unresolved', 0) }}</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+            <div class="text-sm text-gray-500">Critical</div>
+            <div class="text-2xl font-bold text-red-800">{{ stats.get('by_severity', {}).get('critical', 0) }}</div>
+        </div>
+    </div>
+
+    <!-- Alert List -->
+    <div class="bg-white shadow rounded-lg overflow-hidden">
+        <div id="alert-list" class="divide-y divide-gray-200">
+            {% for alert in alerts %}
+            <div class="p-4 {% if not alert.is_read %}bg-blue-50{% endif %}">
+                <div class="flex items-start justify-between">
+                    <div class="flex-1">
+                        <div class="flex items-center space-x-2">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+                                {% if alert.severity == 'critical' %}bg-red-200 text-red-800
+                                {% elif alert.severity == 'warning' %}bg-yellow-100 text-yellow-800
+                                {% else %}bg-blue-100 text-blue-800{% endif %}">
+                                {{ alert.severity }}
+                            </span>
+                            <span class="text-xs text-gray-500">{{ alert.alert_type }}</span>
+                            {% if not alert.is_read %}
+                            <span class="w-2 h-2 bg-blue-500 rounded-full"></span>
+                            {% endif %}
+                        </div>
+                        <h3 class="mt-1 text-sm font-medium text-gray-900">{{ alert.title }}</h3>
+                        <p class="mt-1 text-sm text-gray-600">{{ alert.description }}</p>
+                        <div class="mt-2 flex items-center space-x-4 text-xs text-gray-500">
+                            <span>Package: <strong>{{ alert.package_name }}</strong></span>
+                            <span>{{ alert.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                        </div>
+                    </div>
+                    <div class="flex space-x-2 ml-4">
+                        {% if not alert.is_read %}
+                        <button hx-post="/api/alerts/{{ alert.id }}/read"
+                                hx-target="closest .p-4"
+                                hx-swap="outerHTML"
+                                class="text-blue-600 hover:text-blue-900 text-sm">Read</button>
+                        {% endif %}
+                        {% if not alert.is_resolved %}
+                        <button hx-post="/api/alerts/{{ alert.id }}/resolve"
+                                hx-target="closest .p-4"
+                                hx-swap="outerHTML"
+                                class="text-green-600 hover:text-green-900 text-sm">Resolve</button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

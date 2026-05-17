@@ -1,7 +1,6 @@
 """npm registry client for fetching package metadata and tarballs."""
 
 import io
-import json
 import tarfile
 from datetime import datetime
 

@@ -164,3 +164,97 @@ async def scan_detail(
             "scan_id": record.id,
         },
     )
+
+
+@router.get("/watchlist", response_class=HTMLResponse)
+async def watchlist_page(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> HTMLResponse:
+    """Watchlist page."""
+    from git_guardian.services.watchlist_service import WatchlistService
+
+    service = WatchlistService(session)
+    entries = await service.list_entries()
+    stats = await service.get_stats()
+
+    return templates.TemplateResponse(
+        name="watchlist.html",
+        request=request,
+        context={
+            "title": "Watchlist",
+            "entries": entries,
+            "stats": stats,
+        },
+    )
+
+
+@router.post("/watchlist", response_class=HTMLResponse)
+async def watchlist_add(
+    request: Request,
+    package_name: str = Form(...),
+    session: AsyncSession = Depends(get_session),
+) -> HTMLResponse:
+    """Add package to watchlist via HTMX."""
+    from git_guardian.services.watchlist_service import WatchlistService
+
+    service = WatchlistService(session)
+    entry = await service.add_package(package_name)
+    await session.commit()
+
+    return HTMLResponse(
+        content=f"""<tr>
+            <td class="px-6 py-4 whitespace-nowrap"><span class="text-sm font-medium text-gray-900">{entry.package_name}</span></td>
+            <td class="px-6 py-4 whitespace-nowrap"><span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">{entry.status}</span></td>
+            <td class="px-6 py-4 whitespace-nowrap"><span class="text-gray-400">-</span></td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">0</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Never</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm space-x-2">
+                <button hx-post="/watchlist/{entry.package_name}/pause" hx-confirm="Pause?" class="text-yellow-600 hover:text-yellow-900">Pause</button>
+                <button hx-delete="/watchlist/{entry.package_name}" hx-confirm="Remove?" hx-target="closest tr" hx-swap="outerHTML" class="text-red-600 hover:text-red-900">Remove</button>
+            </td>
+        </tr>"""
+    )
+
+
+@router.get("/tasks", response_class=HTMLResponse)
+async def tasks_page(
+    request: Request,
+) -> HTMLResponse:
+    """Background tasks page."""
+    from git_guardian.workers.task_manager import get_task_manager
+
+    manager = get_task_manager()
+    tasks = manager.get_all_tasks()
+
+    return templates.TemplateResponse(
+        name="tasks.html",
+        request=request,
+        context={
+            "title": "Background Tasks",
+            "tasks": tasks,
+        },
+    )
+
+
+@router.get("/alerts", response_class=HTMLResponse)
+async def alerts_page(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> HTMLResponse:
+    """Alerts page."""
+    from git_guardian.services.alert_service import AlertService
+
+    service = AlertService(session)
+    alerts = await service.list_alerts(limit=50)
+    stats = await service.get_alert_stats()
+
+    return templates.TemplateResponse(
+        name="alerts.html",
+        request=request,
+        context={
+            "title": "Security Alerts",
+            "alerts": alerts,
+            "stats": stats,
+        },
+    )
