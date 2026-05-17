@@ -3,7 +3,7 @@
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class RiskLevel(str, Enum):
@@ -75,7 +75,7 @@ class ScanResult(BaseModel):
     findings: list[Finding] = []
     ai_analysis: str | None = None
     scan_duration_seconds: float = 0.0
-    scanned_at: datetime = datetime.now()
+    scanned_at: datetime = Field(default_factory=datetime.now)
 
     @property
     def finding_count(self) -> dict[RiskLevel, int]:
