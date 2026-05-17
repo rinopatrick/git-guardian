@@ -1,22 +1,16 @@
 """Web UI routes."""
 
 import json
-import time
-from datetime import datetime
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse
-from sqlalchemy import select, desc, func
+from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from git_guardian.api.app import templates
 from git_guardian.api.deps import get_session
 from git_guardian.db.models import ScanRecord
-from git_guardian.models.package import RiskLevel, ScanResult
-from git_guardian.scanner.ai_analyzer import AICodeAnalyzer
-from git_guardian.scanner.npm import NpmRegistryClient
-from git_guardian.scanner.patterns import PatternDetector
-from git_guardian.scanner.typosquat import TyposquatDetector
+from git_guardian.scanner.service import ScanService
 
 router = APIRouter(tags=["web"])
 
@@ -51,64 +45,18 @@ async def scan_form(
     session: AsyncSession = Depends(get_session),
 ) -> HTMLResponse:
     """Scan package from form submission."""
-    start_time = time.time()
-
-    # Initialize components
-    npm_client = NpmRegistryClient()
-    pattern_detector = PatternDetector()
-    typosquat_detector = TyposquatDetector(npm_client.get_popular_packages())
-    ai_analyzer = AICodeAnalyzer(enabled=deep)
-
     try:
-        # Fetch package info
-        package_info = npm_client.get_package(package_name)
-
-        # Check typosquat
-        typosquat_findings = typosquat_detector.scan_package_name(package_name)
-
-        # Fetch and scan files
-        files = npm_client.get_package_files(package_name)
-
-        # Pattern detection
-        pattern_findings = pattern_detector.scan_package(files)
-
-        # Combine findings
-        all_findings = typosquat_findings + pattern_findings
-
-        # AI analysis (if enabled)
-        ai_finding = None
-        if deep:
-            ai_finding = ai_analyzer.analyze_package(package_info, files, all_findings)
-            if ai_finding:
-                all_findings.append(ai_finding)
-
-        # Determine overall risk level
-        if not all_findings:
-            risk_level = RiskLevel.SAFE
-        else:
-            risk_order = [
-                RiskLevel.CRITICAL,
-                RiskLevel.HIGH,
-                RiskLevel.MEDIUM,
-                RiskLevel.LOW,
-                RiskLevel.SAFE,
-            ]
-            risk_level = RiskLevel.SAFE
-            for level in risk_order:
-                if any(f.risk_level == level for f in all_findings):
-                    risk_level = level
-                    break
-
-        scan_duration = time.time() - start_time
+        with ScanService(enable_ai=deep) as service:
+            result = service.scan_package(package_name)
 
         # Save to database
         record = ScanRecord(
             package_name=package_name,
-            package_version=package_info.latest_version,
-            risk_level=risk_level.value,
-            findings_json=json.dumps([f.model_dump() for f in all_findings]),
-            ai_analysis=ai_finding.description if ai_finding else None,
-            scan_duration=scan_duration,
+            package_version=result.package.latest_version,
+            risk_level=result.risk_level.value,
+            findings_json=json.dumps([f.model_dump() for f in result.findings]),
+            ai_analysis=result.ai_analysis,
+            scan_duration=result.scan_duration_seconds,
         )
         session.add(record)
         await session.flush()
@@ -118,12 +66,12 @@ async def scan_form(
             request=request,
             context={
                 "title": f"Scan: {package_name}",
-                "package": package_info,
-                "risk_level": risk_level.value,
-                "risk_color": _risk_color(risk_level.value),
-                "findings": all_findings,
-                "ai_analysis": ai_finding.description if ai_finding else None,
-                "scan_duration": scan_duration,
+                "package": result.package,
+                "risk_level": result.risk_level.value,
+                "risk_color": _risk_color(result.risk_level.value),
+                "findings": result.findings,
+                "ai_analysis": result.ai_analysis,
+                "scan_duration": result.scan_duration_seconds,
                 "scan_id": record.id,
             },
         )
@@ -137,8 +85,6 @@ async def scan_form(
                 "error": str(e),
             },
         )
-    finally:
-        npm_client.close()
 
 
 @router.get("/history", response_class=HTMLResponse)

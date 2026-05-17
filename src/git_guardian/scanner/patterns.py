@@ -5,12 +5,6 @@ from dataclasses import dataclass
 
 from git_guardian.models.package import Finding, RiskLevel
 
-# Keywords that indicate dangerous function calls
-_DANGEROUS_CALLS = [
-    "eval",
-    "Function",
-]
-
 
 @dataclass
 class PatternRule:

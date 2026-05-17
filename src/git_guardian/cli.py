@@ -1,7 +1,5 @@
 """CLI entry point for Git Guardian."""
 
-import time
-
 import typer
 from rich.console import Console
 from rich.panel import Panel
@@ -98,78 +96,14 @@ def scan(
     json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
 ) -> None:
     """Scan an npm package for security issues."""
-    from git_guardian.scanner.ai_analyzer import AICodeAnalyzer
-    from git_guardian.scanner.npm import NpmRegistryClient
-    from git_guardian.scanner.patterns import PatternDetector
-    from git_guardian.scanner.typosquat import TyposquatDetector
+    from git_guardian.scanner.service import ScanService
 
     console.print(f"\n[bold blue]Scanning package:[/bold blue] {package_name}\n")
 
-    start_time = time.time()
-
-    # Initialize components
-    npm_client = NpmRegistryClient()
-    pattern_detector = PatternDetector()
-    typosquat_detector = TyposquatDetector(npm_client.get_popular_packages())
-    ai_analyzer = AICodeAnalyzer(enabled=deep and not no_ai)
-
     try:
-        # Fetch package info
-        console.print("Fetching package metadata...")
-        package_info = npm_client.get_package(package_name)
-        console.print(f"Found: {package_info.name} v{package_info.latest_version}")
-
-        # Check typosquat
-        console.print("Checking for typosquatting...")
-        typosquat_findings = typosquat_detector.scan_package_name(package_name)
-
-        # Fetch and scan files
-        console.print("Downloading and scanning files...")
-        files = npm_client.get_package_files(package_name, version)
-        console.print(f"Scanning {len(files)} files...")
-
-        # Pattern detection
-        pattern_findings = pattern_detector.scan_package(files)
-
-        # Combine findings
-        all_findings = typosquat_findings + pattern_findings
-
-        # AI analysis (if enabled)
-        ai_finding = None
-        if deep and not no_ai:
-            console.print("Running AI analysis...")
-            ai_finding = ai_analyzer.analyze_package(package_info, files, all_findings)
-            if ai_finding:
-                all_findings.append(ai_finding)
-
-        # Determine overall risk level
-        if not all_findings:
-            risk_level = RiskLevel.SAFE
-        else:
-            # Use highest risk level from findings
-            risk_order = [
-                RiskLevel.CRITICAL,
-                RiskLevel.HIGH,
-                RiskLevel.MEDIUM,
-                RiskLevel.LOW,
-                RiskLevel.SAFE,
-            ]
-            risk_level = RiskLevel.SAFE
-            for level in risk_order:
-                if any(f.risk_level == level for f in all_findings):
-                    risk_level = level
-                    break
-
-        scan_duration = time.time() - start_time
-
-        # Build result
-        result = ScanResult(
-            package=package_info,
-            risk_level=risk_level,
-            findings=all_findings,
-            ai_analysis=ai_finding.description if ai_finding else None,
-            scan_duration_seconds=scan_duration,
-        )
+        with ScanService(enable_ai=deep and not no_ai) as service:
+            console.print("Fetching package metadata...")
+            result = service.scan_package(package_name, version)
 
         # Output
         if json_output:
@@ -182,8 +116,6 @@ def scan(
     except Exception as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(code=1)
-    finally:
-        npm_client.close()
 
 
 @app.command()
