@@ -41,6 +41,8 @@ if STATIC_DIR.exists():
 # Import and include routes
 from git_guardian.api.routes.scan import router as scan_router
 from git_guardian.api.routes.web import router as web_router
+from git_guardian.github.bot import router as github_router
 
 app.include_router(scan_router, prefix="/api")
 app.include_router(web_router)
+app.include_router(github_router)

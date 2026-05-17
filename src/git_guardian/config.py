@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     port: int = 8000
     debug: bool = False
 
+    # GitHub
+    github_webhook_secret: str = ""
+    github_app_id: str = ""
+    github_private_key: str = ""
+
     model_config = {"env_prefix": "GIT_GUARDIAN_"}
 
 
