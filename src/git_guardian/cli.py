@@ -223,5 +223,25 @@ def version() -> None:
     console.print(f"Git Guardian v{__version__}")
 
 
+@app.command()
+def serve(
+    host: str = typer.Option("0.0.0.0", help="Host to bind"),
+    port: int = typer.Option(8000, help="Port to bind"),
+    reload: bool = typer.Option(False, help="Enable auto-reload"),
+) -> None:
+    """Start the web server."""
+    import uvicorn
+
+    console.print(f"[bold blue]Starting Git Guardian web server...[/bold blue]")
+    console.print(f"Open http://{host}:{port} in your browser")
+
+    uvicorn.run(
+        "git_guardian.api.app:app",
+        host=host,
+        port=port,
+        reload=reload,
+    )
+
+
 if __name__ == "__main__":
     app()
