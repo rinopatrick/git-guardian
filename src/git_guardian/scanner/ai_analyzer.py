@@ -1,6 +1,7 @@
 """AI-powered code analysis using mimo-v2.5-pro."""
 
-from openai import OpenAI
+import json
+import urllib.request
 
 from git_guardian.config import settings
 from git_guardian.models.package import Finding, PackageInfo, RiskLevel
@@ -43,13 +44,28 @@ class AICodeAnalyzer:
             enabled: Whether AI analysis is enabled (defaults to settings)
         """
         self.enabled = enabled if enabled is not None else settings.ai_enabled
-        self.client: OpenAI | None = None
+        self.base_url = settings.ai_base_url
+        self.model = settings.ai_model
 
-        if self.enabled:
-            self.client = OpenAI(
-                base_url=settings.ai_base_url,
-                api_key="not-needed",  # Free API, no key required
-            )
+    def _call_api(self, messages: list[dict], max_tokens: int = 1000) -> str | None:
+        """Call MiMo API using urllib (avoids requests gzip issue)."""
+        data = json.dumps({
+            "model": self.model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": 0.1,
+        }).encode()
+
+        url = f"{self.base_url}/chat/completions"
+        req = urllib.request.Request(
+            url,
+            data=data,
+            headers={"Content-Type": "application/json"},
+        )
+
+        resp = urllib.request.urlopen(req, timeout=30)
+        result = json.loads(resp.read())
+        return result["choices"][0]["message"]["content"]
 
     def analyze_code(
         self,
@@ -67,7 +83,7 @@ class AICodeAnalyzer:
         Returns:
             Finding if suspicious, None if safe
         """
-        if not self.enabled or not self.client:
+        if not self.enabled:
             return None
 
         # Truncate code to fit context window
@@ -85,23 +101,18 @@ File: {filename}
 ```"""
 
         try:
-            response = self.client.chat.completions.create(
-                model=settings.ai_model,
+            content = self._call_api(
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": user_message},
                 ],
                 max_tokens=1000,
-                temperature=0.1,
             )
 
-            content = response.choices[0].message.content
             if not content:
                 return None
 
             # Parse JSON response
-            import json
-
             try:
                 result = json.loads(content)
             except json.JSONDecodeError:
