@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from enum import Enum
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -33,7 +34,7 @@ class PackageVersion(BaseModel):
     license: str | None = None
     dependencies: dict[str, str] = {}
     scripts: dict[str, str] = {}
-    dist: dict[str, str | int | float] = {}
+    dist: dict[str, Any] = {}
     published_at: datetime | None = None
 
 

@@ -37,8 +37,9 @@ def _risk_color(level: str) -> str:
 async def index(request: Request) -> HTMLResponse:
     """Home page."""
     return templates.TemplateResponse(
-        "index.html",
-        {"request": request, "title": "Git Guardian"},
+        name="index.html",
+        request=request,
+        context={"title": "Git Guardian"},
     )
 
 
@@ -113,9 +114,9 @@ async def scan_form(
         await session.flush()
 
         return templates.TemplateResponse(
-            "scan.html",
-            {
-                "request": request,
+            name="scan.html",
+            request=request,
+            context={
                 "title": f"Scan: {package_name}",
                 "package": package_info,
                 "risk_level": risk_level.value,
@@ -129,9 +130,9 @@ async def scan_form(
 
     except Exception as e:
         return templates.TemplateResponse(
-            "index.html",
-            {
-                "request": request,
+            name="index.html",
+            request=request,
+            context={
                 "title": "Git Guardian",
                 "error": str(e),
             },
@@ -166,9 +167,9 @@ async def history(
     records = result.scalars().all()
 
     return templates.TemplateResponse(
-        "history.html",
-        {
-            "request": request,
+        name="history.html",
+        request=request,
+        context={
             "title": "Scan History",
             "scans": records,
             "total_scans": total_scans,
@@ -192,9 +193,9 @@ async def scan_detail(
 
     if not record:
         return templates.TemplateResponse(
-            "index.html",
-            {
-                "request": request,
+            name="index.html",
+            request=request,
+            context={
                 "title": "Not Found",
                 "error": "Scan not found",
             },
@@ -203,9 +204,9 @@ async def scan_detail(
     findings = json.loads(record.findings_json) if record.findings_json else []
 
     return templates.TemplateResponse(
-        "scan.html",
-        {
-            "request": request,
+        name="scan.html",
+        request=request,
+        context={
             "title": f"Scan: {record.package_name}",
             "package_name": record.package_name,
             "package_version": record.package_version,
