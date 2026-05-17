@@ -192,7 +192,7 @@ File: {filename}
         Returns:
             Overall AI finding or None
         """
-        if not self.enabled or not self.client:
+        if not self.enabled:
             return None
 
         # Build context about the package
