@@ -77,13 +77,14 @@
             <div class="p-6">
                 <div class="flex items-start justify-between mb-2">
                     <div>
+                        {% set rl = finding.risk_level.value if finding.risk_level is defined and finding.risk_level.value is defined else finding.risk_level %}
                         <span class="inline-block px-2 py-1 text-xs font-semibold rounded
-                            {% if finding.risk_level.value == 'critical' %}bg-red-100 text-red-800
-                            {% elif finding.risk_level.value == 'high' %}bg-orange-100 text-orange-800
-                            {% elif finding.risk_level.value == 'medium' %}bg-yellow-100 text-yellow-800
-                            {% elif finding.risk_level.value == 'low' %}bg-blue-100 text-blue-800
+                            {% if rl == 'critical' %}bg-red-100 text-red-800
+                            {% elif rl == 'high' %}bg-orange-100 text-orange-800
+                            {% elif rl == 'medium' %}bg-yellow-100 text-yellow-800
+                            {% elif rl == 'low' %}bg-blue-100 text-blue-800
                             {% else %}bg-gray-100 text-gray-800{% endif %}">
-                            {{ finding.risk_level.value | upper }}
+                            {{ rl | upper }}
                         </span>
                         <span class="ml-2 text-sm text-gray-500">{{ finding.rule_id }}</span>
                     </div>
