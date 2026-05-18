@@ -446,5 +446,335 @@ def alerts() -> None:
     asyncio.run(_run())
 
 
+# === Phase 6: License Commands ===
+
+@app.command()
+def license_check(
+    package_name: str = typer.Argument(..., help="npm package to check license"),
+    json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
+) -> None:
+    """Check license compliance of a package."""
+    from git_guardian.scanner.npm import NpmRegistryClient
+    from git_guardian.services.license_scanner import LicenseScanner
+
+    console.print(f"\n[bold blue]License scan:[/bold blue] {package_name}\n")
+
+    try:
+        npm = NpmRegistryClient()
+        pkg_info = npm.get_package(package_name)
+        scanner = LicenseScanner()
+        report = scanner.scan_package(pkg_info)
+
+        if json_output:
+            import json
+            print(json.dumps({
+                "package": report.package_name,
+                "license": report.license_id,
+                "type": report.license_type,
+                "is_risky": report.is_risky,
+                "is_compliant": report.is_compliant,
+                "findings": [f.model_dump() for f in report.findings],
+            }, indent=2))
+        else:
+            risk_style = _risk_style(RiskLevel.HIGH if report.is_risky else RiskLevel.SAFE)
+            console.print(f"License: [bold]{report.license_id or 'NONE'}[/bold]")
+            console.print(f"Type: [{risk_style}]{report.license_type}[/{risk_style}]")
+            console.print(f"Risky: {'Yes' if report.is_risky else 'No'}")
+            console.print(f"Compliant: {'Yes' if report.is_compliant else 'No'}")
+
+            if report.findings:
+                table = Table(title="License Findings", show_lines=True)
+                table.add_column("ID", style="cyan", width=12)
+                table.add_column("Risk", width=10)
+                table.add_column("Title", width=30)
+                table.add_column("Description", width=50)
+                for f in report.findings:
+                    table.add_row(f.rule_id, f"[{_risk_style(f.risk_level)}]{f.risk_level.value.upper()}[/{_risk_style(f.risk_level)}]", f.title, f.description[:80])
+                console.print(table)
+
+        npm.close()
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def health(
+    package_name: str = typer.Argument(..., help="npm package to score"),
+    json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
+) -> None:
+    """Score package health across multiple dimensions."""
+    from git_guardian.scanner.npm import NpmRegistryClient
+    from git_guardian.services.health_scorer import HealthScorer
+
+    console.print(f"\n[bold blue]Health score:[/bold blue] {package_name}\n")
+
+    try:
+        npm = NpmRegistryClient()
+        pkg_info = npm.get_package(package_name)
+        scorer = HealthScorer()
+        report = scorer.score_package(pkg_info)
+
+        if json_output:
+            import json
+            print(json.dumps({
+                "package": report.package_name,
+                "score": report.overall_score,
+                "grade": report.grade,
+                "risk_level": report.risk_level.value,
+                "dimensions": [{"name": d.name, "score": d.score, "weight": d.weight, "issues": d.issues} for d in report.dimensions],
+                "recommendations": report.recommendations,
+            }, indent=2))
+        else:
+            grade_colors = {"A": "green", "B": "green", "C": "yellow", "D": "dark_orange", "F": "red"}
+            color = grade_colors.get(report.grade, "white")
+            console.print(f"Score: [{color}]{report.overall_score}/100 ({report.grade})[/{color}]")
+            console.print(f"Risk: [{_risk_style(report.risk_level)}]{report.risk_level.value.upper()}[/{_risk_style(report.risk_level)}]\n")
+
+            table = Table(title="Health Dimensions")
+            table.add_column("Dimension", style="cyan")
+            table.add_column("Score", justify="right")
+            table.add_column("Weight", justify="right")
+            table.add_column("Issues")
+            for d in report.dimensions:
+                score_color = "green" if d.score >= 70 else "yellow" if d.score >= 50 else "red"
+                table.add_row(d.name, f"[{score_color}]{d.score}[/{score_color}]", f"{d.weight:.0%}", "; ".join(d.issues) or "None")
+            console.print(table)
+
+            if report.recommendations:
+                console.print("\n[bold]Recommendations:[/bold]")
+                for r in report.recommendations[:10]:
+                    console.print(f"  - {r}")
+
+        npm.close()
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def audit(
+    package_name: str = typer.Argument(..., help="npm package to audit"),
+    json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
+) -> None:
+    """Audit package.json for risky configurations."""
+    from git_guardian.scanner.npm import NpmRegistryClient
+    from git_guardian.services.package_audit import PackageAuditor
+
+    console.print(f"\n[bold blue]Package audit:[/bold blue] {package_name}\n")
+
+    try:
+        npm = NpmRegistryClient()
+        files = npm.get_package_files(package_name)
+
+        # Parse package.json
+        pkg_json_content = files.get("package.json", "{}")
+        import json
+        pkg_json = json.loads(pkg_json_content)
+
+        auditor = PackageAuditor()
+        report = auditor.audit_package_json(pkg_json, package_name)
+
+        if json_output:
+            print(json.dumps({
+                "package": report.package_name,
+                "is_clean": report.is_clean,
+                "scripts": report.scripts,
+                "risky_configs": report.risky_configs,
+                "findings": [f.model_dump() for f in report.findings],
+            }, indent=2, default=str))
+        else:
+            status = "[green]CLEAN[/green]" if report.is_clean else f"[red]{len(report.findings)} ISSUE(S)[/red]"
+            console.print(f"Status: {status}")
+
+            if report.scripts:
+                console.print(f"\n[bold]Scripts ({len(report.scripts)}):[/bold]")
+                for name, cmd in report.scripts.items():
+                    style = "red" if name in ("preinstall", "postinstall", "install") else "white"
+                    console.print(f"  [{style}]{name}[/{style}]: {cmd[:100]}")
+
+            if report.findings:
+                table = Table(title="Audit Findings", show_lines=True)
+                table.add_column("ID", style="cyan", width=12)
+                table.add_column("Risk", width=10)
+                table.add_column("Title", width=30)
+                table.add_column("Description", width=50)
+                for f in report.findings:
+                    table.add_row(f.rule_id, f"[{_risk_style(f.risk_level)}]{f.risk_level.value.upper()}[/{_risk_style(f.risk_level)}]", f.title, f.description[:80])
+                console.print(table)
+
+        npm.close()
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def network(
+    package_name: str = typer.Argument(..., help="npm package to profile"),
+    json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
+) -> None:
+    """Profile network behavior of a package."""
+    from git_guardian.scanner.npm import NpmRegistryClient
+    from git_guardian.services.network_profiler import NetworkProfiler
+
+    console.print(f"\n[bold blue]Network profile:[/bold blue] {package_name}\n")
+
+    try:
+        npm = NpmRegistryClient()
+        files = npm.get_package_files(package_name)
+        profiler = NetworkProfiler()
+        report = profiler.profile_package(package_name, files)
+
+        if json_output:
+            import json
+            print(json.dumps({
+                "package": report.package_name,
+                "endpoint_count": report.endpoint_count,
+                "has_telemetry": report.has_telemetry,
+                "has_suspicious": report.has_suspicious,
+                "domains": list(report.domains),
+                "endpoints": [{"url": e.url, "domain": e.domain, "category": e.category, "file": e.file_path} for e in report.endpoints],
+                "findings": [f.model_dump() for f in report.findings],
+            }, indent=2))
+        else:
+            console.print(f"Endpoints: [bold]{report.endpoint_count}[/bold]")
+            console.print(f"Domains: {len(report.domains)}")
+            console.print(f"Telemetry: {'Yes' if report.has_telemetry else 'No'}")
+            console.print(f"Suspicious: [red]Yes[/red]" if report.has_suspicious else "Suspicious: No")
+
+            if report.endpoints:
+                table = Table(title="Network Endpoints", show_lines=True)
+                table.add_column("Category", width=12)
+                table.add_column("Domain", width=30)
+                table.add_column("File", width=25)
+                table.add_column("URL", width=40)
+                for e in report.endpoints[:30]:
+                    cat_style = {"telemetry": "yellow", "suspicious": "red", "local": "dim", "unknown": "white"}.get(e.category, "white")
+                    table.add_row(f"[{cat_style}]{e.category}[/{cat_style}]", e.domain, e.file_path[:25], e.url[:40])
+                console.print(table)
+
+            if report.findings:
+                console.print("\n[bold]Findings:[/bold]")
+                for f in report.findings:
+                    console.print(f"  [{_risk_style(f.risk_level)}]{f.title}[/{_risk_style(f.risk_level)}]: {f.description[:80]}")
+
+        npm.close()
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def malware(
+    package_name: str = typer.Argument(..., help="npm package to check"),
+    json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
+) -> None:
+    """Check package against malware signature database."""
+    from git_guardian.scanner.npm import NpmRegistryClient
+    from git_guardian.services.malware_db import MalwareDatabase
+
+    console.print(f"\n[bold blue]Malware check:[/bold blue] {package_name}\n")
+
+    try:
+        npm = NpmRegistryClient()
+        pkg_info = npm.get_package(package_name)
+        files = npm.get_package_files(package_name)
+
+        db = MalwareDatabase()
+        findings, matches = db.scan_package(package_name, pkg_info.latest_version, files)
+
+        if json_output:
+            import json
+            print(json.dumps({
+                "package": package_name,
+                "version": pkg_info.latest_version,
+                "matches": len(matches),
+                "findings": [f.model_dump() for f in findings],
+                "db_stats": db.get_stats(),
+            }, indent=2))
+        else:
+            stats = db.get_stats()
+            console.print(f"Database: {stats['total_signatures']} signatures")
+            console.print(f"Matches: [bold]{len(matches)}[/bold]")
+
+            if findings:
+                table = Table(title="Malware Findings", show_lines=True)
+                table.add_column("ID", style="cyan", width=14)
+                table.add_column("Risk", width=10)
+                table.add_column("Title", width=30)
+                table.add_column("Description", width=50)
+                for f in findings:
+                    table.add_row(f.rule_id, f"[{_risk_style(f.risk_level)}]{f.risk_level.value.upper()}[/{_risk_style(f.risk_level)}]", f.title, f.description[:80])
+                console.print(table)
+            else:
+                console.print("[green]No malware signatures matched.[/green]")
+
+        npm.close()
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def deep(
+    package_name: str = typer.Argument(..., help="npm package for deep analysis"),
+    json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
+) -> None:
+    """Deep AI analysis of ALL files in a package (heavy token usage)."""
+    from git_guardian.scanner.npm import NpmRegistryClient
+    from git_guardian.services.deep_analyzer import DeepAnalyzer
+
+    console.print(f"\n[bold blue]Deep AI analysis:[/bold blue] {package_name}")
+    console.print("[dim]This will analyze ALL files and consume significant tokens...[/dim]\n")
+
+    try:
+        npm = NpmRegistryClient()
+        pkg_info = npm.get_package(package_name)
+        files = npm.get_package_files(package_name)
+
+        analyzer = DeepAnalyzer()
+        result = analyzer.analyze_package(pkg_info, files)
+
+        if json_output:
+            import json
+            print(json.dumps({
+                "package": result.package_name,
+                "files_analyzed": result.files_analyzed,
+                "total_tokens": result.total_tokens,
+                "risk_level": result.risk_level.value,
+                "summary": result.summary,
+                "attack_vector": result.attack_vector,
+                "recommended_action": result.recommended_action,
+                "findings": [f.model_dump() for f in result.findings],
+            }, indent=2))
+        else:
+            console.print(f"Files analyzed: [bold]{result.files_analyzed}[/bold]")
+            console.print(f"Tokens consumed: [bold]{result.total_tokens:,}[/bold]")
+            console.print(f"Risk: [{_risk_style(result.risk_level)}]{result.risk_level.value.upper()}[/{_risk_style(result.risk_level)}]")
+            console.print(f"Action: [bold]{result.recommended_action}[/bold]")
+
+            if result.summary:
+                console.print(f"\nSummary: {result.summary}")
+            if result.attack_vector:
+                console.print(f"Attack vector: {result.attack_vector}")
+
+            if result.findings:
+                table = Table(title="Deep Analysis Findings", show_lines=True)
+                table.add_column("ID", style="cyan", width=12)
+                table.add_column("Risk", width=10)
+                table.add_column("Title", width=30)
+                table.add_column("File", width=25)
+                table.add_column("Description", width=40)
+                for f in result.findings:
+                    table.add_row(f.rule_id, f"[{_risk_style(f.risk_level)}]{f.risk_level.value.upper()}[/{_risk_style(f.risk_level)}]", f.title, f.file_path or "-", f.description[:60])
+                console.print(table)
+
+        npm.close()
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
 if __name__ == "__main__":
     app()
