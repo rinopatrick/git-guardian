@@ -1,0 +1,478 @@
+[
+  {
+    "package": "express",
+    "deps": 30,
+    "findings": 0,
+    "tokens": 15000,
+    "duration": 4.378965616226196
+  },
+  {
+    "package": "react",
+    "deps": 1,
+    "findings": 0,
+    "tokens": 500,
+    "duration": 2.641510248184204
+  },
+  {
+    "package": "vue",
+    "deps": 20,
+    "findings": 0,
+    "tokens": 10000,
+    "duration": 2.4598498344421387
+  },
+  {
+    "package": "angular",
+    "deps": 1,
+    "findings": 0,
+    "tokens": 500,
+    "duration": 0.4958655834197998
+  },
+  {
+    "package": "next",
+    "deps": 12,
+    "findings": 0,
+    "tokens": 6000,
+    "duration": 2.829383134841919
+  },
+  {
+    "package": "nuxt",
+    "deps": 30,
+    "findings": 0,
+    "tokens": 15000,
+    "duration": 6.253828287124634
+  },
+  {
+    "package": "webpack",
+    "deps": 30,
+    "findings": 0,
+    "tokens": 15000,
+    "duration": 5.768136024475098
+  },
+  {
+    "package": "vite",
+    "deps": 13,
+    "findings": 0,
+    "tokens": 6500,
+    "duration": 4.551108121871948
+  },
+  {
+    "package": "babel",
+    "deps": 1,
+    "findings": 0,
+    "tokens": 500,
+    "duration": 0.4245316982269287
+  },
+  {
+    "package": "prettier",
+    "deps": 1,
+    "findings": 0,
+    "tokens": 500,
+    "duration": 0.29325270652770996
+  },
+  {
+    "package": "jest",
+    "deps": 30,
+    "findings": 0,
+    "tokens": 15000,
+    "duration": 5.793026685714722
+  },
+  {
+    "package": "mocha",
+    "deps": 30,
+    "findings": 1,
+    "tokens": 15200,
+    "duration": 6.17460298538208
+  },
+  {
+    "package": "chai",
+    "deps": 1,
+    "findings": 0,
+    "tokens": 500,
+    "duration": 0.6401677131652832
+  },
+  {
+    "package": "cypress",
+    "deps": 30,
+    "findings": 1,
+    "tokens": 15200,
+    "duration": 5.9451210498809814
+  },
+  {
+    "package": "playwright",
+    "deps": 2,
+    "findings": 0,
+    "tokens": 1000,
+    "duration": 2.2603650093078613
+  },
+  {
+    "package": "axios",
+    "deps": 17,
+    "findings": 0,
+    "tokens": 8500,
+    "duration": 1.9126222133636475
+  },
+  {
+    "package": "got",
+    "deps": 26,
+    "findings": 0,
+    "tokens": 13000,
+    "duration": 5.398488521575928
+  },
+  {
+    "package": "node-fetch",
+    "deps": 7,
+    "findings": 1,
+    "tokens": 3700,
+    "duration": 1.643021821975708
+  },
+  {
+    "package": "undici",
+    "deps": 1,
+    "findings": 0,
+    "tokens": 500,
+    "duration": -0.0751955509185791
+  },
+  {
+    "package": "lodash",
+    "deps": 1,
+    "findings": 1,
+    "tokens": 700,
+    "duration": 0.34801197052001953
+  },
+  {
+    "package": "moment",
+    "deps": 1,
+    "findings": 0,
+    "tokens": 500,
+    "duration": 0.2238774299621582
+  },
+  {
+    "package": "date-fns",
+    "deps": 1,
+    "findings": 0,
+    "tokens": 500,
+    "duration": 0.906679630279541
+  },
+  {
+    "package": "dayjs",
+    "deps": 1,
+    "findings": 0,
+    "tokens": 500,
+    "duration": 0.2734682559967041
+  },
+  {
+    "package": "mongoose",
+    "deps": 7,
+    "findings": 2,
+    "tokens": 3900,
+    "duration": 2.019805908203125
+  },
+  {
+    "package": "sequelize",
+    "deps": 20,
+    "findings": 2,
+    "tokens": 10400,
+    "duration": 3.5893046855926514
+  },
+  {
+    "package": "typeorm",
+    "deps": 30,
+    "findings": 1,
+    "tokens": 15200,
+    "duration": 5.850845098495483
+  },
+  {
+    "package": "prisma",
+    "deps": 30,
+    "findings": 2,
+    "tokens": 15400,
+    "duration": 7.748244047164917
+  },
+  {
+    "package": "ws",
+    "deps": 1,
+    "findings": 0,
+    "tokens": 500,
+    "duration": 0.2786860466003418
+  },
+  {
+    "package": "graphql",
+    "deps": 1,
+    "findings": 0,
+    "tokens": 500,
+    "duration": 0.44502902030944824
+  },
+  {
+    "package": "apollo-server",
+    "deps": 30,
+    "findings": 0,
+    "tokens": 15000,
+    "duration": 6.098130226135254
+  },
+  {
+    "package": "passport",
+    "deps": 4,
+    "findings": 0,
+    "tokens": 2000,
+    "duration": 0.9826602935791016
+  },
+  {
+    "package": "jsonwebtoken",
+    "deps": 16,
+    "findings": 8,
+    "tokens": 9600,
+    "duration": 2.6315176486968994
+  },
+  {
+    "package": "bcrypt",
+    "deps": 3,
+    "findings": 1,
+    "tokens": 1700,
+    "duration": 0.7997338771820068
+  },
+  {
+    "package": "multer",
+    "deps": 15,
+    "findings": 0,
+    "tokens": 7500,
+    "duration": 3.19352650642395
+  },
+  {
+    "package": "sharp",
+    "deps": 4,
+    "findings": 1,
+    "tokens": 2200,
+    "duration": 1.0104963779449463
+  },
+  {
+    "package": "canvas",
+    "deps": 28,
+    "findings": 1,
+    "tokens": 14200,
+    "duration": 5.781765460968018
+  },
+  {
+    "package": "nodemailer",
+    "deps": 1,
+    "findings": 0,
+    "tokens": 500,
+    "duration": 0.4418046474456787
+  },
+  {
+    "package": "sendgrid",
+    "deps": 26,
+    "findings": 1,
+    "tokens": 13200,
+    "duration": 5.52656888961792
+  },
+  {
+    "package": "twilio",
+    "deps": 30,
+    "findings": 8,
+    "tokens": 16600,
+    "duration": 6.014429330825806
+  },
+  {
+    "package": "stripe",
+    "deps": 1,
+    "findings": 0,
+    "tokens": 500,
+    "duration": 0.5817530155181885
+  },
+  {
+    "package": "paypal",
+    "deps": 2,
+    "findings": 0,
+    "tokens": 1000,
+    "duration": 0.4096348285675049
+  },
+  {
+    "package": "braintree",
+    "deps": 6,
+    "findings": 0,
+    "tokens": 3000,
+    "duration": 1.4149551391601562
+  },
+  {
+    "package": "aws-sdk",
+    "deps": 30,
+    "findings": 1,
+    "tokens": 15200,
+    "duration": 6.184318542480469
+  },
+  {
+    "package": "googleapis",
+    "deps": 20,
+    "findings": 0,
+    "tokens": 10000,
+    "duration": 3.43473482131958
+  },
+  {
+    "package": "azure",
+    "deps": 30,
+    "findings": 0,
+    "tokens": 15000,
+    "duration": 6.520350456237793
+  },
+  {
+    "package": "pm2",
+    "deps": 30,
+    "findings": 1,
+    "tokens": 15200,
+    "duration": 5.860374927520752
+  },
+  {
+    "package": "nodemon",
+    "deps": 24,
+    "findings": 2,
+    "tokens": 12400,
+    "duration": 4.981898307800293
+  },
+  {
+    "package": "husky",
+    "deps": 1,
+    "findings": 0,
+    "tokens": 500,
+    "duration": 0.45304393768310547
+  },
+  {
+    "package": "storybook",
+    "deps": 30,
+    "findings": 1,
+    "tokens": 15200,
+    "duration": 6.144973993301392
+  },
+  {
+    "package": "typedoc",
+    "deps": 18,
+    "findings": 1,
+    "tokens": 9200,
+    "duration": 3.7868869304656982
+  },
+  {
+    "package": "jsdoc",
+    "deps": 30,
+    "findings": 4,
+    "tokens": 15800,
+    "duration": 5.360934257507324
+  },
+  {
+    "package": "tailwindcss",
+    "deps": 1,
+    "findings": 0,
+    "tokens": 500,
+    "duration": 0.9087512493133545
+  },
+  {
+    "package": "material-ui",
+    "deps": 30,
+    "findings": 3,
+    "tokens": 15600,
+    "duration": 5.721057891845703
+  },
+  {
+    "package": "redux",
+    "deps": 1,
+    "findings": 0,
+    "tokens": 500,
+    "duration": 0.6452128887176514
+  },
+  {
+    "package": "mobx",
+    "deps": 1,
+    "findings": 0,
+    "tokens": 500,
+    "duration": 0.9818069934844971
+  },
+  {
+    "package": "zustand",
+    "deps": 1,
+    "findings": 0,
+    "tokens": 500,
+    "duration": 0.31538915634155273
+  },
+  {
+    "package": "jotai",
+    "deps": 1,
+    "findings": 0,
+    "tokens": 500,
+    "duration": 0.6038076877593994
+  },
+  {
+    "package": "d3",
+    "deps": 30,
+    "findings": 0,
+    "tokens": 15000,
+    "duration": 5.191401481628418
+  },
+  {
+    "package": "chart.js",
+    "deps": 2,
+    "findings": 0,
+    "tokens": 1000,
+    "duration": 0.6119892597198486
+  },
+  {
+    "package": "recharts",
+    "deps": 30,
+    "findings": 1,
+    "tokens": 15200,
+    "duration": 6.4222259521484375
+  },
+  {
+    "package": "plotly.js",
+    "deps": 30,
+    "findings": 0,
+    "tokens": 15000,
+    "duration": 6.531627416610718
+  },
+  {
+    "package": "three.js",
+    "deps": 2,
+    "findings": 0,
+    "tokens": 1000,
+    "duration": 0.5424039363861084
+  },
+  {
+    "package": "phaser",
+    "deps": 2,
+    "findings": 0,
+    "tokens": 1000,
+    "duration": 0.49688076972961426
+  },
+  {
+    "package": "pixi.js",
+    "deps": 12,
+    "findings": 0,
+    "tokens": 6000,
+    "duration": 2.4475886821746826
+  },
+  {
+    "package": "electron",
+    "deps": 20,
+    "findings": 0,
+    "tokens": 10000,
+    "duration": 3.8318607807159424
+  },
+  {
+    "package": "tauri",
+    "deps": 30,
+    "findings": 5,
+    "tokens": 16000,
+    "duration": 6.122469425201416
+  },
+  {
+    "package": "react-native",
+    "deps": 30,
+    "findings": 1,
+    "tokens": 15200,
+    "duration": 6.217067718505859
+  },
+  {
+    "package": "expo",
+    "deps": 30,
+    "findings": 0,
+    "tokens": 15000,
+    "duration": 6.174941062927246
+  }
+]
