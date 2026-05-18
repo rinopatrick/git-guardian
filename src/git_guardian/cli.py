@@ -776,5 +776,316 @@ def deep(
         raise typer.Exit(code=1)
 
 
+# === Phase 6 continued: Lockfile, Advisory, SBOM, Report ===
+
+@app.command()
+def lockfile(
+    package_name: str = typer.Argument(..., help="npm package to analyze lockfile"),
+    json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
+) -> None:
+    """Analyze package lockfile for injection attacks and integrity issues."""
+    from git_guardian.scanner.npm import NpmRegistryClient
+    from git_guardian.services.lockfile_analyzer import LockfileAnalyzer
+
+    console.print(f"\n[bold blue]Lockfile analysis:[/bold blue] {package_name}\n")
+
+    try:
+        npm = NpmRegistryClient()
+        files = npm.get_package_files(package_name)
+
+        analyzer = LockfileAnalyzer()
+        findings_all = []
+        reports = []
+
+        # Try package-lock.json
+        if "package-lock.json" in files:
+            pkg_json = {}
+            if "package.json" in files:
+                import json
+                try:
+                    pkg_json = json.loads(files["package.json"])
+                except json.JSONDecodeError:
+                    pass
+            report = analyzer.analyze_npm_lockfile(
+                files["package-lock.json"],
+                package_name,
+                pkg_json.get("dependencies"),
+            )
+            reports.append(report)
+            findings_all.extend(report.findings)
+
+        # Try yarn.lock
+        if "yarn.lock" in files:
+            report = analyzer.analyze_yarn_lockfile(files["yarn.lock"], package_name)
+            reports.append(report)
+            findings_all.extend(report.findings)
+
+        # Try pnpm-lock.yaml
+        if "pnpm-lock.yaml" in files:
+            report = analyzer.analyze_pnpm_lockfile(files["pnpm-lock.yaml"], package_name)
+            reports.append(report)
+            findings_all.extend(report.findings)
+
+        if not reports:
+            console.print("[yellow]No lockfile found in package.[/yellow]")
+            npm.close()
+            return
+
+        if json_output:
+            import json
+            print(json.dumps({
+                "package": package_name,
+                "lockfiles": [r.lockfile_type for r in reports],
+                "total_entries": sum(r.total_entries for r in reports),
+                "findings": [f.model_dump() for f in findings_all],
+                "injected_deps": [d for r in reports for d in r.injected_deps],
+                "integrity_issues": [i for r in reports for i in r.integrity_issues],
+            }, indent=2))
+        else:
+            for report in reports:
+                console.print(f"\n[bold]{report.lockfile_type} lockfile[/bold] ({report.total_entries} entries)")
+                status = "[green]CLEAN[/green]" if report.is_clean else f"[red]{len(report.findings)} ISSUE(S)[/red]"
+                console.print(f"Status: {status}")
+                if report.injected_deps:
+                    console.print(f"[red]Injected deps: {', '.join(report.injected_deps)}[/red]")
+                if report.integrity_issues:
+                    console.print(f"[yellow]Integrity issues: {', '.join(report.integrity_issues[:10])}[/yellow]")
+
+            if findings_all:
+                table = Table(title="Lockfile Findings", show_lines=True)
+                table.add_column("ID", style="cyan", width=12)
+                table.add_column("Risk", width=10)
+                table.add_column("Title", width=35)
+                table.add_column("Description", width=50)
+                for f in findings_all:
+                    table.add_row(f.rule_id, f"[{_risk_style(f.risk_level)}]{f.risk_level.value.upper()}[/{_risk_style(f.risk_level)}]", f.title, f.description[:80])
+                console.print(table)
+
+        npm.close()
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def advisory(
+    package_name: str = typer.Argument(..., help="npm package to check advisories"),
+    version: str = typer.Option(None, "--version", "-v", help="Current version to check"),
+    json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
+) -> None:
+    """Check package against GitHub Advisory Database for known CVEs."""
+    from git_guardian.scanner.npm import NpmRegistryClient
+    from git_guardian.services.advisory_client import AdvisoryClient
+
+    console.print(f"\n[bold blue]Advisory check:[/bold blue] {package_name}\n")
+
+    try:
+        npm = NpmRegistryClient()
+        pkg_info = npm.get_package(package_name)
+        ver = version or pkg_info.latest_version
+
+        client = AdvisoryClient()
+        report = client.scan_package(package_name, ver)
+
+        if json_output:
+            import json
+            print(json.dumps({
+                "package": package_name,
+                "version": ver,
+                "advisory_count": len(report.advisories),
+                "critical": report.critical_count,
+                "high": report.high_count,
+                "advisories": [{
+                    "ghsa_id": a.ghsa_id,
+                    "cve_id": a.cve_id,
+                    "severity": a.severity,
+                    "summary": a.summary,
+                    "affected": a.affected_versions,
+                    "patched": a.patched_versions,
+                    "cvss": a.cvss_score,
+                } for a in report.advisories],
+                "findings": [f.model_dump() for f in report.findings],
+            }, indent=2))
+        else:
+            if report.has_advisories:
+                console.print(f"[red]Found {len(report.advisories)} advisory(ies)[/red]")
+                console.print(f"Critical: {report.critical_count} | High: {report.high_count}\n")
+
+                table = Table(title="Security Advisories", show_lines=True)
+                table.add_column("GHSA", style="cyan", width=18)
+                table.add_column("CVE", width=18)
+                table.add_column("Severity", width=10)
+                table.add_column("Summary", width=50)
+                table.add_column("CVSS", width=6)
+                for a in report.advisories:
+                    sev_style = _risk_style({
+                        "critical": RiskLevel.CRITICAL,
+                        "high": RiskLevel.HIGH,
+                        "medium": RiskLevel.MEDIUM,
+                        "low": RiskLevel.LOW,
+                    }.get(a.severity, RiskLevel.LOW))
+                    table.add_row(
+                        a.ghsa_id,
+                        a.cve_id or "-",
+                        f"[{sev_style}]{a.severity.upper()}[/{sev_style}]",
+                        a.summary[:50],
+                        str(a.cvss_score) if a.cvss_score else "-",
+                    )
+                console.print(table)
+            else:
+                console.print("[green]No known advisories found.[/green]")
+
+            console.print(f"\nAPI cache: {client.get_stats()['cached_packages']} packages cached")
+
+        npm.close()
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def sbom(
+    package_name: str = typer.Argument(..., help="npm package to generate SBOM"),
+    format: str = typer.Option("cyclonedx", "--format", "-f", help="SBOM format: cyclonedx or spdx"),
+    output: str = typer.Option(None, "--output", "-o", help="Output file path"),
+    json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
+) -> None:
+    """Generate Software Bill of Materials (SBOM)."""
+    from git_guardian.scanner.npm import NpmRegistryClient
+    from git_guardian.services.sbom_service import SBOMService
+    import json
+
+    console.print(f"\n[bold blue]SBOM generation:[/bold blue] {package_name} ({format})\n")
+
+    try:
+        npm = NpmRegistryClient()
+        pkg_info = npm.get_package(package_name)
+
+        # Build dependency info
+        deps = {}
+        if pkg_info.versions:
+            latest = pkg_info.versions[-1]
+            for dep_name, dep_ver in latest.dependencies.items():
+                deps[dep_name] = {"version": dep_ver}
+
+        service = SBOMService()
+
+        if format == "cyclonedx":
+            result = service.generate_cyclonedx(pkg_info, deps)
+        elif format == "spdx":
+            result = service.generate_spdx(pkg_info, deps)
+        else:
+            console.print(f"[red]Unknown format: {format}. Use 'cyclonedx' or 'spdx'.[/red]")
+            raise typer.Exit(code=1)
+
+        if output:
+            Path(output).write_text(result.content)
+            console.print(f"[green]SBOM written to {output}[/green]")
+        elif json_output:
+            print(result.content)
+        else:
+            console.print(f"Format: {result.format}")
+            console.print(f"Components: {result.component_count}")
+            console.print(f"Vulnerabilities: {result.vulnerability_count}")
+            console.print(f"\n[dim]Use --output <file> to save the SBOM[/dim]")
+            # Show preview
+            preview = result.content[:500]
+            console.print(f"\n{preview}...")
+
+        npm.close()
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def report(
+    package_name: str = typer.Argument(..., help="npm package to generate report"),
+    json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
+) -> None:
+    """Generate comprehensive AI security report (heavy token usage)."""
+    from git_guardian.scanner.npm import NpmRegistryClient
+    from git_guardian.scanner.patterns import PatternDetector
+    from git_guardian.services.report_service import ReportService
+    from git_guardian.services.health_scorer import HealthScorer
+    from git_guardian.services.network_profiler import NetworkProfiler
+    from git_guardian.services.advisory_client import AdvisoryClient
+
+    console.print(f"\n[bold blue]Security report:[/bold blue] {package_name}")
+    console.print("[dim]Generating multi-pass AI report (heavy token usage)...[/dim]\n")
+
+    try:
+        npm = NpmRegistryClient()
+        pkg_info = npm.get_package(package_name)
+        files = npm.get_package_files(package_name)
+
+        # Gather all findings
+        detector = PatternDetector()
+        pattern_findings = detector.scan_package(files)
+
+        # Network summary
+        profiler = NetworkProfiler()
+        net_report = profiler.profile_package(package_name, files)
+        network_summary = f"{net_report.endpoint_count} endpoints, telemetry: {net_report.has_telemetry}, suspicious: {net_report.has_suspicious}"
+
+        # Health score
+        health = HealthScorer()
+        health_report = health.score_package(pkg_info)
+
+        # Advisories
+        adv_client = AdvisoryClient()
+        adv_report = adv_client.scan_package(package_name, pkg_info.latest_version)
+
+        # Dependency info
+        dep_info = {"total": 0, "packages": {}}
+        if pkg_info.versions:
+            latest = pkg_info.versions[-1]
+            dep_info["total"] = len(latest.dependencies)
+            for dep_name, dep_ver in list(latest.dependencies.items())[:30]:
+                dep_info["packages"][dep_name] = {"version": dep_ver}
+
+        # Generate report
+        report_service = ReportService()
+        sec_report = report_service.generate_report(
+            pkg_info,
+            pattern_findings,
+            dep_info,
+            adv_report.findings,
+            network_summary,
+            health_report.overall_score,
+        )
+
+        if json_output:
+            import json
+            print(json.dumps({
+                "package": sec_report.package_name,
+                "version": sec_report.version,
+                "overall_risk": sec_report.overall_risk.value,
+                "total_findings": sec_report.total_findings,
+                "risk_breakdown": sec_report.risk_breakdown,
+                "total_tokens": sec_report.total_tokens,
+                "executive_summary": sec_report.executive_summary,
+                "findings_narrative": sec_report.findings_narrative,
+                "dependency_risk": sec_report.dependency_risk,
+                "recommendations": sec_report.recommendations,
+            }, indent=2))
+        else:
+            risk_style = _risk_style(sec_report.overall_risk)
+            console.print(f"[bold]Package:[/bold] {sec_report.package_name} v{sec_report.version}")
+            console.print(f"[bold]Risk:[/bold] [{risk_style}]{sec_report.overall_risk.value.upper()}[/{risk_style}]")
+            console.print(f"[bold]Findings:[/bold] {sec_report.total_findings}")
+            console.print(f"[bold]Tokens consumed:[/bold] {sec_report.total_tokens:,}")
+
+            console.print(Panel(sec_report.executive_summary, title="Executive Summary", border_style="blue"))
+            console.print(Panel(sec_report.findings_narrative, title="Detailed Findings", border_style="yellow"))
+            console.print(Panel(sec_report.dependency_risk, title="Dependency Risk", border_style="red"))
+            console.print(Panel(sec_report.recommendations, title="Recommendations", border_style="green"))
+
+        npm.close()
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1)
+
+
 if __name__ == "__main__":
     app()
