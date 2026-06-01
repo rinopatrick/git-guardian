@@ -1,3 +1,5 @@
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+
 # Git Guardian
 
 AI-assisted supply chain security scanner for npm packages.
